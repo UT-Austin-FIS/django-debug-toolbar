@@ -1,11 +1,45 @@
 Change log
 ==========
 
+1.6
+---
+
+The debug toolbar was adopted by jazzband.
+
+Removed features
+~~~~~~~~~~~~~~~~
+
+* Support for automatic setup has been removed as it was frequently
+  problematic. Installation now requires explicit setup. The
+  ``DEBUG_TOOLBAR_PATCH_SETTINGS`` setting has also been removed as it is now
+  unused. See the :doc:`installation documentation <installation>` for details.
+
+Bugfixes
+~~~~~~~~
+
+* The ``DebugToolbarMiddleware`` now also supports Django 1.10's ``MIDDLEWARE``
+  setting.
+
+1.5
+---
+
+This version is compatible with Django 1.10 and requires Django 1.8 or later.
+
+Support for Python 3.2 is dropped.
+
+Bugfixes
+~~~~~~~~
+
+* Restore compatibility with sqlparse ≥ 0.2.0.
+* Add compatibility with Bootstrap 4, Pure CSS, MDL, etc.
+* Improve compatibility with RequireJS / AMD.
+* Improve the UI slightly.
+* Fix invalid (X)HTML.
+
 1.4
 ---
 
-This version is compatible with the upcoming Django 1.9 release. It requires
-Django 1.7 or later.
+This version is compatible with Django 1.9 and requires Django 1.7 or later.
 
 New features
 ~~~~~~~~~~~~

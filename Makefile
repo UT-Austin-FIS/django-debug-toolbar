@@ -13,6 +13,12 @@ example:
 	DJANGO_SETTINGS_MODULE=example.settings \
 		django-admin runserver
 
+jshint: node_modules/jshint/bin/jshint
+	./node_modules/jshint/bin/jshint debug_toolbar/static/debug_toolbar/js/*.js
+
+node_modules/jshint/bin/jshint:
+	npm install jshint --prefix .
+
 test:
 	DJANGO_SETTINGS_MODULE=tests.settings \
 		django-admin test tests
@@ -22,9 +28,11 @@ test_selenium:
 		django-admin test tests
 
 coverage:
+	python --version
 	coverage erase
 	DJANGO_SETTINGS_MODULE=tests.settings \
-		coverage run --branch --source=debug_toolbar `which django-admin` test tests
+		coverage run `which django-admin` test -v2 tests
+	coverage report
 	coverage html
 
 translatable_strings:

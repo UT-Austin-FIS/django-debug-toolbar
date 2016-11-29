@@ -6,7 +6,9 @@ import os
 import unittest
 from xml.etree import ElementTree as ET
 
+import django
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
+from django.core.checks import Error, run_checks
 from django.test import RequestFactory, TestCase
 from django.test.utils import override_settings
 
@@ -164,12 +166,15 @@ class DebugToolbarLiveTestCase(StaticLiveServerTestCase):
             lambda selenium: version_panel.find_element_by_tag_name('p'))
         self.assertIn("Data for this panel isn't available anymore.", error.text)
 
-    @override_settings(TEMPLATE_LOADERS=[(
-        'django.template.loaders.cached.Loader', (
-            'django.template.loaders.filesystem.Loader',
-            'django.template.loaders.app_directories.Loader',
-        ),
-    )])
+    @override_settings(DEBUG=True, TEMPLATES=[{
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'OPTIONS': {'loaders': [(
+            'django.template.loaders.cached.Loader', (
+                'django.template.loaders.filesystem.Loader',
+                'django.template.loaders.app_directories.Loader',
+            )
+        )]},
+    }])
     def test_django_cached_template_loader(self):
         self.selenium.get(self.live_server_url + '/regular/basic/')
         version_panel = self.selenium.find_element_by_id('TemplatesPanel')
@@ -187,3 +192,70 @@ class DebugToolbarLiveTestCase(StaticLiveServerTestCase):
         WebDriverWait(self.selenium, timeout=10).until(
             lambda selenium: self.selenium.find_element_by_css_selector(
                 '#djDebugWindow code'))
+
+
+@override_settings(DEBUG=True)
+class DebugToolbarSystemChecksTestCase(BaseTestCase):
+    @override_settings(
+        MIDDLEWARE=None,
+        MIDDLEWARE_CLASSES=[
+            'django.middleware.gzip.GZipMiddleware',
+            'debug_toolbar.middleware.DebugToolbarMiddleware',
+        ]
+    )
+    def test_check_good_configuration(self):
+        messages = run_checks()
+        self.assertEqual(messages, [])
+
+    @override_settings(MIDDLEWARE=None, MIDDLEWARE_CLASSES=[])
+    def test_check_missing_middleware_error(self):
+        messages = run_checks()
+        self.assertEqual(
+            messages,
+            [
+                Error(
+                    "debug_toolbar.middleware.DebugToolbarMiddleware is "
+                    "missing from MIDDLEWARE_CLASSES.",
+                    hint="Add debug_toolbar.middleware.DebugToolbarMiddleware "
+                    "to MIDDLEWARE_CLASSES.",
+                ),
+            ]
+        )
+
+    @override_settings(
+        MIDDLEWARE=None,
+        MIDDLEWARE_CLASSES=[
+            'debug_toolbar.middleware.DebugToolbarMiddleware',
+            'django.middleware.gzip.GZipMiddleware',
+        ]
+    )
+    def test_check_gzip_middleware_error(self):
+        messages = run_checks()
+        self.assertEqual(
+            messages,
+            [
+                Error(
+                    "debug_toolbar.middleware.DebugToolbarMiddleware occurs "
+                    "before django.middleware.gzip.GZipMiddleware in "
+                    "MIDDLEWARE_CLASSES.",
+                    hint="Move debug_toolbar.middleware.DebugToolbarMiddleware "
+                    "to after django.middleware.gzip.GZipMiddleware in "
+                    "MIDDLEWARE_CLASSES.",
+                ),
+            ]
+        )
+
+    @override_settings(
+        MIDDLEWARE=[
+            'debug_toolbar.middleware.DebugToolbarMiddleware',
+            'tests.middleware.simple_middleware',
+        ],
+        MIDDLEWARE_CLASSES=None
+    )
+    def test_middleware_factory_functions_supported(self):
+        messages = run_checks()
+
+        if django.VERSION[:2] < (1, 10):
+            self.assertEqual(messages, [])
+        else:
+            self.assertEqual(messages[0].id, '1_10.W001')

@@ -3,9 +3,13 @@ from __future__ import absolute_import, unicode_literals
 from django.http import HttpResponseBadRequest
 from django.shortcuts import render_to_response
 from django.template import TemplateDoesNotExist
+from django.template.engine import Engine
 from django.utils.safestring import mark_safe
 
-from debug_toolbar.compat import get_template_loaders
+try:
+    from django.template import Origin
+except ImportError:
+    Origin = None
 
 
 def template_source(request):
@@ -13,12 +17,13 @@ def template_source(request):
     Return the source of a template, syntax-highlighted by Pygments if
     it's available.
     """
-    template_name = request.GET.get('template', None)
-    if template_name is None:
-        return HttpResponseBadRequest('"template" key is required')
+    template_origin_name = request.GET.get('template_origin', None)
+    if template_origin_name is None:
+        return HttpResponseBadRequest('"template_origin" key is required')
+    template_name = request.GET.get('template', template_origin_name)
 
     final_loaders = []
-    loaders = get_template_loaders()
+    loaders = Engine.get_default().template_loaders
 
     for loader in loaders:
         if loader is not None:
@@ -31,11 +36,21 @@ def template_source(request):
                 final_loaders.append(loader)
 
     for loader in final_loaders:
-        try:
-            source, display_name = loader.load_template_source(template_name)
-            break
-        except TemplateDoesNotExist:
-            source = "Template Does Not Exist: %s" % (template_name,)
+        if Origin:  # django>=1.9
+            origin = Origin(template_origin_name)
+            try:
+                source = loader.get_contents(origin)
+                break
+            except TemplateDoesNotExist:
+                pass
+        else:  # django<1.9
+            try:
+                source, _ = loader.load_template_source(template_name)
+                break
+            except TemplateDoesNotExist:
+                pass
+    else:
+        source = "Template Does Not Exist: %s" % (template_origin_name,)
 
     try:
         from pygments import highlight
